@@ -4,11 +4,22 @@ import pymysql
 import sqlite3
 
 def load_jsonl(file_path):
-    data = []
-    with open(file_path, "r") as file:
-        for line in file:
-            data.append(json.loads(line))
-    return data
+    """
+    Accepts either:
+      • regular JSON-Lines (one JSON object per line)
+      • a single JSON array  [ {...}, {...}, ... ]
+    Returns a list of dicts in both cases.
+    """
+    with open(file_path, "r", encoding="utf-8") as f:
+        first = f.read(1)
+        f.seek(0)
+
+        # Classic JSON array
+        if first == "[":
+            return json.load(f)
+
+        # JSON-Lines
+        return [json.loads(line) for line in f if line.strip()]
 
 def load_json(dir):
     with open(dir, "r") as j:

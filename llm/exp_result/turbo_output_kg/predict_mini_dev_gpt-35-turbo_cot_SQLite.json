@@ -1,0 +1,6 @@
+{
+    "0": "SELECT \n    (SELECT COUNT(*) FROM customers WHERE Currency = 'EUR') /\n    (SELECT COUNT(*) FROM customers WHERE Currency = 'CZK') as Ratio_of_Customers_EUR_to_CZK\t----- bird -----\tdebit_card_specializing",
+    "1": "SELECT CustomerID, SUM(Consumption) AS TotalConsumption\nFROM yearmonth\nWHERE Date LIKE '2012%'\nAND Segment = 'LAM'\nGROUP BY CustomerID\nORDER BY TotalConsumption\nLIMIT 1\t----- bird -----\tdebit_card_specializing",
+    "2": "SELECT AVG(Consumption) / 12\nFROM yearmonth\nWHERE Date BETWEEN '201301' AND '201312'\nAND CustomerID IN (SELECT CustomerID FROM customers WHERE Segment = 'SME')\t----- bird -----\tdebit_card_specializing",
+    "3": "SELECT SUM(CASE WHEN c.Currency = 'CZK' THEN y.Consumption ELSE 0 END) - SUM(CASE WHEN c.Currency = 'EUR' THEN y.Consumption ELSE 0 END) AS Difference_In_Consumption\nFROM customers c\nJOIN yearmonth y ON c.CustomerID = y.CustomerID\nWHERE y.Date BETWEEN '201201' AND '201212'\t----- bird -----\tdebit_card_specializing"
+}

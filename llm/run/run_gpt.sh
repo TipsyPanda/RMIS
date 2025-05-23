@@ -1,17 +1,21 @@
-eval_path='./data/mini_dev_sqlite.json' # _sqlite.json, _mysql.json, _postgresql.json
+eval_path='/home/tchak/mini_dev/llm/data/mini_dev_sqlite.json' # _sqlite.json, _mysql.json, _postgresql.json
 dev_path='./output/'
-db_root_path='./data/dev_databases/'
-use_knowledge='True'
+db_root_path='/home/tchak/mini_dev/llm/data/dev_databases/'
+use_knowledge='Langchain'
 mode='mini_dev' # dev, train, mini_dev
-cot='True'
+cot='false'
 
 YOUR_API_KEY='YOUR_API_KEY'
 
 # Choose the engine to run, e.g. gpt-4, gpt-4-32k, gpt-4-turbo, gpt-35-turbo, GPT35-turbo-instruct
-engine='gpt-4-turbo'
+
+ engine='gpt-35-turbo'
+#engine='gpt-4o-mini'
+# engine='gpt-4.1-mini'
+
 
 # Choose the number of threads to run in parallel, 1 for single thread
-num_threads=3
+num_threads=2
 
 # Choose the SQL dialect to run, e.g. SQLite, MySQL, PostgreSQL
 # PLEASE NOTE: You have to setup the database information in table_schema.py 
@@ -19,8 +23,8 @@ num_threads=3
 sql_dialect='SQLite'
 
 # Choose the output path for the generated SQL queries
-data_output_path='./exp_result/turbo_output/'
-data_kg_output_path='./exp_result/turbo_output_kg/'
+data_output_path='./exp_result/RMIS_output/'
+data_kg_output_path='./exp_result/RMIS_output_kg/'
 
 echo "generate $engine batch, run in $num_threads threads, with knowledge: $use_knowledge, with chain of thought: $cot"
 python3 -u ./src/gpt_request.py --db_root_path ${db_root_path} --api_key ${YOUR_API_KEY} --mode ${mode} \

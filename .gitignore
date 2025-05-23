@@ -1,1 +1,7 @@
 .DS_Store
+llm/data/
+examples/
+minidev.zip
+env/
+examples/MySQL.ipynb
+examples/RMIS.ipynb

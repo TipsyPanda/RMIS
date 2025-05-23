@@ -1,7 +1,9 @@
+import os
 import sys
 import argparse
 import multiprocessing as mp
 from func_timeout import func_timeout, FunctionTimedOut
+from tqdm import tqdm
 from evaluation_utils import (
     load_jsonl,
     execute_sql,
@@ -10,6 +12,9 @@ from evaluation_utils import (
     print_data,
 )
 
+def _execute_model_args(args):
+    # args is the tuple: (pred_sql, gt, db, idx, timeout, dialect)
+    return execute_model(*args)
 
 def result_callback(result):
     exec_result.append(result)
@@ -26,6 +31,8 @@ def execute_model(
     predicted_sql, ground_truth, db_place, idx, meta_time_out, sql_dialect
 ):
     try:
+        if not os.path.isfile(db_place):
+            raise FileNotFoundError(f"DB not found: {db_place}")
         res = func_timeout(
             meta_time_out,
             execute_sql,
@@ -44,26 +51,26 @@ def execute_model(
 
 
 def run_sqls_parallel(
-    sqls, db_places, num_cpus=1, meta_time_out=30.0, sql_dialect="SQLite"
+    sqls, db_places,
+    num_cpus=1, meta_time_out=30.0,
+    sql_dialect="SQLite"
 ):
-    pool = mp.Pool(processes=num_cpus)
-    for i, sql_pair in enumerate(sqls):
+    """
+    Executes SQL evaluations in parallel with a tqdm progress bar.
+    """
+    args_iter = (
+        (pred, gt, db, idx, meta_time_out, sql_dialect)
+        for idx, ((pred, gt), db) in enumerate(zip(sqls, db_places))
+    )
 
-        predicted_sql, ground_truth = sql_pair
-        pool.apply_async(
-            execute_model,
-            args=(
-                predicted_sql,
-                ground_truth,
-                db_places[i],
-                i,
-                meta_time_out,
-                sql_dialect,
-            ),
-            callback=result_callback,
-        )
-    pool.close()
-    pool.join()
+    with mp.Pool(processes=num_cpus) as pool:
+        for result in tqdm(
+            pool.imap_unordered(_execute_model_args, args_iter),
+            total=len(sqls),
+            desc="Evaluating SQL",
+            unit="query",
+        ):
+            result_callback(result)
 
 
 def compute_acc_by_diff(exec_results, diff_json_path):

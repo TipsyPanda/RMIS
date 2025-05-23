@@ -1,0 +1,100 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+
+        {
+            "name": "Evaluation ex",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/evaluation/evaluation_ex.py",
+            "args": [
+                "--db_root_path", "/home/tchak/mini_dev/llm/data/dev_databases/",
+                "--predicted_sql_path", "/home/tchak/mini_dev/llm/exp_result/RMIS_output_kg/predict_mini_dev_gpt-4o-mini_SQLite.json",
+                "--ground_truth_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_gold_20.sql",
+                "--num_cpus", "1",
+                "--output_log_path", "/home/tchak/mini_dev/eval_result/RMIS_EX.txt",
+                "--diff_json_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_20.json",
+                "--meta_time_out", "30.0",
+                "--sql_dialect", "SQLite"
+              ],
+              "console": "integratedTerminal"
+        },
+
+        {
+          "name": "Evaluation ves",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "${workspaceFolder}/evaluation/evaluation_ves.py",
+          "args": [
+              "--db_root_path", "/home/tchak/mini_dev/llm/data/dev_databases/",
+              "--predicted_sql_path", "/home/tchak/mini_dev/llm/exp_result/turbo_output_kg/predict_mini_dev_gpt-35-turbo_cot_SQLite.json",
+              "--ground_truth_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_gold_short.sql",
+              "--num_cpus", "1",
+              "--output_log_path", "/home/tchak/mini_dev/eval_result/predict_mini_dev_gpt-35-turbo_cot_SQLite.txt",
+              "--diff_json_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_short.json",
+              "--meta_time_out", "30.0",
+              "--sql_dialect", "SQLite"
+            ],
+            "console": "integratedTerminal"
+      },
+
+      {
+        "name": "Evaluation f1",
+        "type": "debugpy",
+        "request": "launch",
+        "program": "${workspaceFolder}/evaluation/evaluation_f1.py",
+        "args": [
+            "--db_root_path", "/home/tchak/mini_dev/llm/data/dev_databases/",
+            "--predicted_sql_path", "/home/tchak/mini_dev/llm/exp_result/turbo_output_kg/predict_mini_dev_gpt-35-turbo_cot_SQLite.json",
+            "--ground_truth_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_gold_short.sql",
+            "--num_cpus", "1",
+            "--output_log_path", "/home/tchak/mini_dev/eval_result/predict_mini_dev_gpt-35-turbo_cot_SQLite.txt",
+            "--diff_json_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_short.json",
+            "--meta_time_out", "30.0",
+            "--sql_dialect", "SQLite"
+          ],
+          "console": "integratedTerminal"
+    },
+
+        {
+          "name": "Ref Eval",
+          "type": "debugpy",
+          "request": "launch",
+          "program": "${workspaceFolder}/evaluation/evaluation_ex.py",
+          "args": [
+              "--db_root_path", "/home/tchak/mini_dev/llm/data/dev_databases",
+              "--predicted_sql_path", "/home/tchak/mini_dev/llm/exp_result/sql_output_kg/predict_mini_dev_gpt-4_sqlite.json",
+              "--ground_truth_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_gold.sql",
+              "--num_cpus", "2",
+              "--output_log_path", "../eval_result/predict_mini_dev_gpt-35-turbo_cot_SQLite.txt",
+              "--diff_json_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite.json",
+              "--meta_time_out", "30.0",
+              "--sql_dialect", "SQLite"
+            ],
+            "console": "integratedTerminal"
+        },
+
+        {
+            "name": "Debug gpt_request.py",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/llm/src/gpt_request.py",
+            "console": "integratedTerminal",
+            "args": [
+              "--db_root_path", "/home/tchak/mini_dev/llm/data/dev_databases/",
+              "--api_key", "8ZZwhR923cQXCUXh92324sCNwGL881Uv0o0EGxqWpdBpoZNtJ98GJQQJ99BEACHYHv6XJ3w3AAAAACOGBoKs",
+              "--mode", "mini_dev",
+              "--engine", "gpt-4.1-mini",
+              "--eval_path", "/home/tchak/mini_dev/llm/data/mini_dev_sqlite_short.json",
+              "--data_output_path", "/home/tchak/mini_dev/llm/exp_result/RMIS_DEBUG/",
+              "--use_knowledge", "Langchain",
+              "--chain_of_thought", "false",
+              "--num_process", "1",
+              "--sql_dialect", "SQLite"
+            ]
+        }
+    ]
+}

@@ -28,44 +28,69 @@ def new_directory(path):
         os.makedirs(path)
 
 
-def post_process_response(content: str, db_path: str) -> str:
+def connect_gpt(engine, prompt, max_tokens, temperature, stop, client):
+    """Fallback GPT prompt path (no LangChain)."""
+    MAX_API_RETRY = 10
+    for attempt in range(MAX_API_RETRY):
+        time.sleep(2)
+        try:
+            if engine == "gpt-35-turbo-instruct":
+                return client.completions.create(
+                    model=engine,
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stop=stop,
+                )
+            else:
+                return client.chat.completions.create(
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    stop=stop,
+                )
+        except Exception as e:
+            print(f"API error (attempt {attempt+1}/{MAX_API_RETRY}): {e}")
+    raise RuntimeError("Failed to get response from API after retries")
+
+
+def post_process_response(response, db_path):
+    """Extract SQL text and tag with DB ID."""
+    content = response if isinstance(response, str) else response.choices[0].message.content
     db_id = os.path.basename(db_path).replace(".sqlite", "")
     return f"{content}\t----- bird -----\t{db_id}"
 
 
-def langchain_prompt_template() -> PromptTemplate:
-    return PromptTemplate(
-        input_variables=["input", "table_info"],
-        template="""
-You are an expert SQL generator. Given the database schema and the user’s question,
-output *only* the SQL query in plain text. Do **not** include any markdown formatting,
-code fences, or explanations.
-
-Schema:
-{table_info}
-
-Question:
-{input}
-"""
-    )
+def decouple_question_schema(datasets, db_root_path):
+    qs, dbs, evidence = [], [], []
+    for entry in datasets:
+        qs.append(entry["question"])
+        dbs.append(os.path.join(db_root_path, entry["db_id"], f"{entry['db_id']}.sqlite"))
+        evidence.append(entry.get("evidence"))
+    return qs, dbs, evidence
 
 
-def connect_gpt(
-    engine: str,
-    client,
-    db_path: str,
-    question: str,
-    prompt: str,
-    use_langchain: bool,
-    idx: int
-) -> str:
+def generate_sql_file(sql_results, output_path=None):
+    """Write out SQL dict to JSON."""
+    sql_results.sort(key=lambda x: x[1])
+    out = {f"{i}": sql for i, (sql, _) in enumerate(sql_results)}
+    if output_path:
+        new_directory(os.path.dirname(output_path))
+        with open(output_path, "w") as f:
+            json.dump(out, f, indent=2)
+    return out
+
+
+def worker_function(task):
     """
-    Consolidated LLM call: LangChain or direct API, with retries and error handling.
-    Returns processed SQL string.
+    task = (prompt, engine, client, db_path, question, idx)
     """
-    if use_langchain:
-        # LangChain path
+    prompt, engine, client, db_path, question, idx = task
+
+    if args.use_knowledge == "Langchain":
+        # 1. load DB
         db = SQLDatabase.from_uri(f"sqlite:///{db_path}")
+        # 2. Azure Chat LLM
         llm = AzureChatOpenAI(
             azure_endpoint=API_BASE,
             azure_deployment=engine,
@@ -73,85 +98,82 @@ def connect_gpt(
             openai_api_version=API_VERSION,
             temperature=0.0,
         )
+
+        sql_prompt = PromptTemplate(
+            input_variables=["input", "table_info"],
+            template="""
+                You are an expert SQL generator.  Given the database schema and the user’s question,
+                output *only* the SQL query in plain text.  Do **not** include any markdown formatting,
+                code fences, or explanations.
+
+                Schema:
+                {table_info}
+
+                Question:
+                {input}
+                """
+        )
+
         chain = SQLDatabaseChain.from_llm(
             llm,
             db,
-            prompt=langchain_prompt_template(),
+            prompt=sql_prompt,
             verbose=False,
             return_intermediate_steps=True,
         )
-        attempts = 3
-        for attempt in range(1, attempts + 1):
+         
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
             try:
                 result = chain.invoke(question, return_only_outputs=True)
-                sql_query = result["intermediate_steps"][1]
-                content = sql_query
+                # success, pull out everything
+                sql_query  = result["intermediate_steps"][1]
+                sql_result = result["intermediate_steps"][3]
+                answer     = result["result"]
+                sql        = post_process_response(sql_query, db_path)
                 print(f"[LangChain]   #{idx} → {db_path} : {question}")
-                return post_process_response(content, db_path)
+                break
 
             except OperationalError as e:
+                # non-LLM SQL error; no retry
                 print(f"[LangChain][SQL Error] #{idx} on {db_path}: {e}")
-                return post_process_response(f"ERROR: {e}", db_path)
+                sql = f"ERROR: {e}\t----- bird -----\t{os.path.basename(db_path).split('.')[0]}"
+                break
 
             except (RateLimitError, OpenAIError) as e:
-                if attempt < attempts:
-                    print(f"[LangChain][API Error] #{idx} attempt {attempt}/{attempts}, retrying in 5s: {e}")
+                # retry on rate-limit or other OpenAI errors
+                if attempt < max_attempts:
+                    print(f"[LangChain][API Error] #{idx} attempt {attempt}/{max_attempts}, retrying in 5s: {e}")
                     time.sleep(5)
                     continue
-                print(f"[LangChain][API Error] #{idx} on {db_path} after {attempts} attempts: {e}")
-                return post_process_response(f"ERROR: {e}", db_path)
+                else:
+                    print(f"[LangChain][API Error] #{idx} on {db_path} after {max_attempts} attempts: {e}")
+                    sql = f"ERROR: {e}\t----- bird -----\t{os.path.basename(db_path).split('.')[0]}"
+                    break
 
             except Exception as e:
+                # catch-all for anything else
                 print(f"[LangChain][Unexpected Error] #{idx} on {db_path}: {e}")
-                return post_process_response(f"ERROR: {e}", db_path)
+                sql = f"ERROR: {e}\t----- bird -----\t{os.path.basename(db_path).split('.')[0]}"
+                break
 
     else:
-        # direct Azure OpenAI chat completion
-        MAX_API_RETRY = 10
-        for attempt in range(1, MAX_API_RETRY + 1):
-            try:
-                if engine == "gpt-35-turbo-instruct":
-                    resp = client.completions.create(
-                        model=engine,
-                        prompt=prompt,
-                        max_tokens=512,
-                        temperature=0.0,
-                        stop=["--", "\n\n", ";", "#"],
-                    )
-                else:
-                    resp = client.chat.completions.create(
-                        messages=[{"role": "user", "content": prompt}],
-                        max_tokens=512,
-                        temperature=0.0,
-                        stop=["--", "\n\n", ";", "#"],
-                    )
-                content = resp.choices[0].message.content
-                print(f"[Prompt]     #{idx} → {db_path} : {question}")
-                return post_process_response(content, db_path)
+        resp = connect_gpt(
+            engine,
+            prompt,
+            max_tokens=512,
+            temperature=0.0,
+            stop=["--", "\n\n", ";", "#"],
+            client=client,
+        )
+        sql = post_process_response(resp, db_path)
+        print(f"[Prompt]     #{idx} → {db_path} : {question}")
 
-            except Exception as e:
-                print(f"[Prompt][API Error] #{idx} attempt {attempt}/{MAX_API_RETRY}: {e}")
-                time.sleep(2)
-                continue
-        return post_process_response(f"ERROR: Failed after retries", db_path)
-
-
-def worker_function(task):
-    prompt, engine, client, db_path, question, idx = task
-    use_langchain = args.use_knowledge == "Langchain"
-    sql = connect_gpt(
-        engine,
-        client,
-        db_path,
-        question,
-        prompt,
-        use_langchain,
-        idx,
-    )
     return sql, idx
 
 
 def init_client(api_key, api_version, engine):
+    """Initialize low-level AzureOpenAI client."""
     return AzureOpenAI(
         api_key=api_key,
         api_version=api_version,
@@ -163,13 +185,14 @@ def collect_response_from_gpt(
     db_paths, questions, api_key, engine,
     sql_dialect, num_threads=3, knowledge_list=None, output_path=None
 ):
+    """Threaded execution; flush partial results to disk."""
     client = init_client(api_key, API_VERSION, engine)
     if knowledge_list is None:
         knowledge_list = [None] * len(questions)
 
     tasks = []
     for i, (dbp, q, kn) in enumerate(zip(db_paths, questions, knowledge_list)):
-        prompt = langchain_prompt_template() if args.use_knowledge == "Langchain" else generate_combined_prompts_one(
+        prompt = None if args.use_knowledge == "Langchain" else generate_combined_prompts_one(
             db_path=dbp,
             question=q,
             sql_dialect=sql_dialect,
@@ -183,6 +206,7 @@ def collect_response_from_gpt(
         for f in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
             res = f.result()
             results.append(res)
+            # flush current partial results
             if output_path:
                 generate_sql_file(results, output_path)
     return results
@@ -219,7 +243,7 @@ if __name__ == "__main__":
         args.sql_dialect,
         args.num_processes,
         knowledge_list=evidence,
-        output_path=fname,
+        output_path=fname,  # enable incremental flush
     )
 
     print(

@@ -1,0 +1,6 @@
+{
+  "0": "SELECT \n  (SELECT COUNT(*) FROM customers WHERE Currency = 'EUR') * 1.0 / \n  NULLIF((SELECT COUNT(*) FROM customers WHERE Currency = 'CZK'), 0) AS ratio_eur_to_czk;\t----- bird -----\tdebit_card_specializing",
+  "1": "SELECT y.CustomerID, y.Consumption\nFROM yearmonth y\nJOIN customers c ON y.CustomerID = c.CustomerID\nWHERE c.Segment = 'LAM' AND y.Date LIKE '2012%'\nORDER BY y.Consumption ASC\nLIMIT 1\t----- bird -----\tdebit_card_specializing",
+  "2": "SELECT AVG(Consumption) \nFROM yearmonth ym\nJOIN customers c ON ym.CustomerID = c.CustomerID\nWHERE c.Segment = 'SME' AND ym.Date LIKE '2013%'\t----- bird -----\tdebit_card_specializing",
+  "3": "SELECT \n    SUM(CASE WHEN c.Currency = 'CZK' THEN ym.Consumption ELSE 0 END) - \n    SUM(CASE WHEN c.Currency = 'EUR' THEN ym.Consumption ELSE 0 END) AS ConsumptionDifference\nFROM yearmonth ym\nJOIN customers c ON ym.CustomerID = c.CustomerID\nWHERE ym.Date LIKE '2012%'\t----- bird -----\tdebit_card_specializing"
+}
